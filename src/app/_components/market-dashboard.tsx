@@ -47,7 +47,7 @@ function TopCard({
             <div className="flex items-center gap-2 overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`https://oldschool.runescape.wiki/images/${encodeURIComponent(item.icon)}`}
+                src={`https://oldschool.runescape.wiki/images/${encodeURIComponent(item.icon.replace(/ /g, "_"))}`}
                 alt=""
                 className="h-5 w-5 shrink-0 object-contain"
                 onError={(e) => {
