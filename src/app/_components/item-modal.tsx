@@ -65,6 +65,7 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
     high: p.avgHighPrice,
     low: p.avgLowPrice,
     vol: (p.highPriceVolume ?? 0) + (p.lowPriceVolume ?? 0),
+    isAnomaly: p.isAnomaly ?? false,
   }));
 
   const iconUrl = `https://oldschool.runescape.wiki/images/${encodeURIComponent(item.icon.replace(/ /g, "_"))}`;
@@ -131,9 +132,15 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
 
         {/* Chart */}
         <div className="px-5 py-4">
-          <p className="mb-2 text-xs font-semibold tracking-wide text-stone-400 uppercase">
-            Price History (last 24h · 5min intervals)
-          </p>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold tracking-wide text-stone-400 uppercase">
+              Price History (last 24h · 5min intervals)
+            </p>
+            <span className="flex items-center gap-1 text-xs text-stone-500">
+              <span className="inline-block h-2 w-2 rounded-full bg-orange-500" />
+              anomalous point
+            </span>
+          </div>
           {isLoading ? (
             <div className="flex h-48 items-center justify-center text-stone-500">
               Loading chart...
@@ -189,7 +196,21 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
                   stroke="#4ade80"
                   strokeWidth={1.5}
                   fill="url(#highGrad)"
-                  dot={false}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  dot={(props: any) => {
+                    if (!props.payload.isAnomaly) return <g key={props.cx} />;
+                    return (
+                      <circle
+                        key={props.cx}
+                        cx={props.cx}
+                        cy={props.cy}
+                        r={4}
+                        fill="#f97316"
+                        stroke="#1c1917"
+                        strokeWidth={1.5}
+                      />
+                    );
+                  }}
                   connectNulls
                 />
                 <Area
@@ -198,7 +219,21 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
                   stroke="#f87171"
                   strokeWidth={1.5}
                   fill="url(#lowGrad)"
-                  dot={false}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  dot={(props: any) => {
+                    if (!props.payload.isAnomaly) return <g key={props.cx} />;
+                    return (
+                      <circle
+                        key={props.cx}
+                        cx={props.cx}
+                        cy={props.cy}
+                        r={4}
+                        fill="#f97316"
+                        stroke="#1c1917"
+                        strokeWidth={1.5}
+                      />
+                    );
+                  }}
                   connectNulls
                 />
               </AreaChart>
