@@ -4,8 +4,9 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 const WIKI_API = "https://prices.runescape.wiki/api/v1/osrs";
 const USER_AGENT = "wise-old-banker/1.0 (emmetthitz@gmail.com)";
 
-const ANOMALY_Z = 3;
-const TIMESERIES_ANOMALY_Z = 2.5;
+// Modified Z-score threshold (Iglewicz & Hoaglin recommend 3.5 for MAD-based detection)
+const ANOMALY_Z = 3.5;
+const TIMESERIES_ANOMALY_Z = 3.5;
 
 interface MappingItem {
   id: number;
@@ -81,13 +82,31 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function sampleStats(values: number[]): { mean: number; std: number } {
-  if (values.length === 0) return { mean: 0, std: 1 };
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const std = Math.sqrt(
-    values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length,
-  );
-  return { mean, std: std || 1 };
+// MAD-based robust stats. Unlike mean/std, the median and MAD are not pulled
+// by extreme values, so a single spike can't inflate the spread enough to mask itself.
+function robustStats(values: number[]): { median: number; mad: number } {
+  if (values.length === 0) return { median: 0, mad: 1 };
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const med =
+    sorted.length % 2 === 0
+      ? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
+      : (sorted[mid] ?? 0);
+  const deviations = sorted
+    .map((v) => Math.abs(v - med))
+    .sort((a, b) => a - b);
+  const madMid = Math.floor(deviations.length / 2);
+  const mad =
+    deviations.length % 2 === 0
+      ? ((deviations[madMid - 1] ?? 0) + (deviations[madMid] ?? 0)) / 2
+      : (deviations[madMid] ?? 0);
+  return { median: med, mad: mad || 1 };
+}
+
+// Modified Z-score: 0.6745 normalises MAD to be comparable to std dev for
+// normally-distributed data (Iglewicz & Hoaglin 1993).
+function modifiedZ(value: number, med: number, mad: number): number {
+  return (0.6745 * Math.abs(value - med)) / mad;
 }
 
 function classifySignal(
@@ -206,15 +225,16 @@ export const geRouter = createTRPCRouter({
       items.push(analyzed);
     }
 
-    // Z-score anomaly detection across all items
-    const pcStats = sampleStats(items.map((i) => i.priceChange1h));
-    const mStats = sampleStats(items.map((i) => i.marginPct));
-    const vrStats = sampleStats(items.map((i) => i.volumeRatio));
+    // Robust anomaly detection across all items using MAD-based modified Z-score.
+    // Prevents extreme outliers from inflating the spread and masking themselves.
+    const pcStats = robustStats(items.map((i) => i.priceChange1h));
+    const mStats = robustStats(items.map((i) => i.marginPct));
+    const vrStats = robustStats(items.map((i) => i.volumeRatio));
 
     for (const item of items) {
-      const pcZ = Math.abs((item.priceChange1h - pcStats.mean) / pcStats.std);
-      const mZ = Math.abs((item.marginPct - mStats.mean) / mStats.std);
-      const vrZ = Math.abs((item.volumeRatio - vrStats.mean) / vrStats.std);
+      const pcZ = modifiedZ(item.priceChange1h, pcStats.median, pcStats.mad);
+      const mZ = modifiedZ(item.marginPct, mStats.median, mStats.mad);
+      const vrZ = modifiedZ(item.volumeRatio, vrStats.median, vrStats.mad);
 
       if (pcZ > ANOMALY_Z || mZ > ANOMALY_Z || vrZ > ANOMALY_Z) {
         item.isAnomaly = true;
@@ -260,7 +280,7 @@ export const geRouter = createTRPCRouter({
         if (prev && curr && prev > 0) changes.push((curr - prev) / prev);
       }
 
-      const { mean, std } = sampleStats(changes);
+      const { median, mad } = robustStats(changes);
 
       let changeIdx = 0;
       return points.map((p, i) => {
@@ -268,7 +288,7 @@ export const geRouter = createTRPCRouter({
           return { ...p, isAnomaly: false };
         }
         const change = changes[changeIdx++] ?? 0;
-        const z = Math.abs((change - mean) / std);
+        const z = modifiedZ(change, median, mad);
         return { ...p, isAnomaly: z > TIMESERIES_ANOMALY_Z };
       });
     }),
