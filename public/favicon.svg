@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Wizard hat -->
+  <polygon points="16,1 6,16 26,16" fill="#1e4dcc"/>
+  <polygon points="16,2 8,15 13,15" fill="#3060e8" opacity="0.45"/>
+  <rect x="4" y="16" width="24" height="3" rx="1.5" fill="#1637a8"/>
+
+  <!-- Face -->
+  <rect x="9" y="18" width="14" height="11" rx="3" fill="#c8845a"/>
+
+  <!-- Bushy white eyebrows -->
+  <rect x="10" y="19.5" width="4.5" height="1.5" rx="0.8" fill="#e8e8e8"/>
+  <rect x="17.5" y="19.5" width="4.5" height="1.5" rx="0.8" fill="#e8e8e8"/>
+
+  <!-- Coin glasses — left -->
+  <circle cx="12.5" cy="23" r="2.5" fill="#f5c518" stroke="#8b6500" stroke-width="0.8"/>
+  <text x="12.5" y="23" text-anchor="middle" dominant-baseline="central" font-family="serif" font-size="3.8" font-weight="bold" fill="#7a4500">$</text>
+
+  <!-- Coin glasses — right -->
+  <circle cx="19.5" cy="23" r="2.5" fill="#f5c518" stroke="#8b6500" stroke-width="0.8"/>
+  <text x="19.5" y="23" text-anchor="middle" dominant-baseline="central" font-family="serif" font-size="3.8" font-weight="bold" fill="#7a4500">$</text>
+
+  <!-- Glasses bridge -->
+  <line x1="15" y1="23" x2="17" y2="23" stroke="#8b6500" stroke-width="0.8"/>
+
+  <!-- Beard -->
+  <rect x="9" y="27" width="14" height="4" fill="#efefef"/>
+  <ellipse cx="16" cy="31" rx="7" ry="3" fill="#efefef"/>
+</svg>

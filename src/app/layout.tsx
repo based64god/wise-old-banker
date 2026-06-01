@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "Wise Old Banker — OSRS Grand Exchange Analyzer",
   description:
     "Real-time market analysis for Old School RuneScape. Track price trends, identify surging and crashing items, and find high-margin flipping opportunities.",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  icons: [{ rel: "icon", url: "/favicon.svg", type: "image/svg+xml" }],
 };
 
 const geist = Geist({
