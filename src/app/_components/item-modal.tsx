@@ -11,6 +11,12 @@ import {
   YAxis,
 } from "recharts";
 import type { AnalyzedItem } from "~/server/api/routers/ge";
+
+interface AnomalyDotProps {
+  cx: number;
+  cy: number;
+  payload: { isAnomaly: boolean };
+}
 import { api } from "~/trpc/react";
 import { SignalBadge } from "./signal-badge";
 
@@ -196,8 +202,7 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
                   stroke="#4ade80"
                   strokeWidth={1.5}
                   fill="url(#highGrad)"
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  dot={(props: any) => {
+                  dot={(props: AnomalyDotProps) => {
                     if (!props.payload.isAnomaly) return <g key={props.cx} />;
                     return (
                       <circle
@@ -219,8 +224,7 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
                   stroke="#f87171"
                   strokeWidth={1.5}
                   fill="url(#lowGrad)"
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  dot={(props: any) => {
+                  dot={(props: AnomalyDotProps) => {
                     if (!props.payload.isAnomaly) return <g key={props.cx} />;
                     return (
                       <circle
