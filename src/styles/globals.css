@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+body {
+  background-color: #0c0800;
+}
+
+/* Scrollbar styling for the OSRS dark theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #4a3010 #1a0e00;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1a0e00;
+}
+::-webkit-scrollbar-thumb {
+  background: #4a3010;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7a5820;
+}
