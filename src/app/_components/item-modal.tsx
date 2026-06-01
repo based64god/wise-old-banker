@@ -28,6 +28,7 @@ function formatTs(ts: number) {
 }
 
 function PctChange({ value }: { value: number }) {
+  if (!isFinite(value)) return <span className="text-stone-500">—</span>;
   const pct = (value * 100).toFixed(2);
   const pos = value >= 0;
   return (
@@ -66,7 +67,7 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
     vol: (p.highPriceVolume ?? 0) + (p.lowPriceVolume ?? 0),
   }));
 
-  const iconUrl = `https://oldschool.runescape.wiki/images/${encodeURIComponent(item.icon)}`;
+  const iconUrl = `https://oldschool.runescape.wiki/images/${encodeURIComponent(item.icon.replace(/ /g, "_"))}`;
 
   return (
     <div
@@ -114,7 +115,9 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
               label: "Margin",
               value: (
                 <span className="text-amber-400">
-                  {(item.marginPct * 100).toFixed(1)}%
+                  {isFinite(item.marginPct)
+                    ? `${(item.marginPct * 100).toFixed(1)}%`
+                    : "—"}
                 </span>
               ),
             },

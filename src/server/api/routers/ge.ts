@@ -98,12 +98,17 @@ function analyzeItem(
   const currentPrice = h1High ?? basePrice;
 
   const priceChange1h =
-    h1High && h6High ? (h1High - h6High) / h6High : 0;
+    effectiveHigh && h6High ? (effectiveHigh - h6High) / h6High : 0;
   const priceChange6h =
     h6High && h24High ? (h6High - h24High) / h24High : priceChange1h;
 
   const h1Low = oneHour?.avgLowPrice;
-  const marginPct = h1High && h1Low && h1Low > 0 ? (h1High - h1Low) / h1Low : 0;
+  const effectiveLow = h1Low ?? latest.low;
+  const effectiveHigh = h1High ?? latest.high;
+  const marginPct =
+    effectiveHigh && effectiveLow && effectiveLow > 0
+      ? (effectiveHigh - effectiveLow) / effectiveLow
+      : 0;
 
   const volume1h = oneHour
     ? oneHour.highPriceVolume + oneHour.lowPriceVolume
