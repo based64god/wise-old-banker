@@ -13,8 +13,8 @@ import {
 import type { AnalyzedItem } from "~/server/api/routers/ge";
 
 interface AnomalyDotProps {
-  cx: number;
-  cy: number;
+  cx?: number;
+  cy?: number;
   payload: { isAnomaly: boolean };
 }
 import { api } from "~/trpc/react";
@@ -203,7 +203,8 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
                   strokeWidth={1.5}
                   fill="url(#highGrad)"
                   dot={(props: AnomalyDotProps) => {
-                    if (!props.payload.isAnomaly) return <g key={props.cx} />;
+                    if (!props.payload.isAnomaly || props.cx == null || props.cy == null)
+                      return <g key={props.cx} />;
                     return (
                       <circle
                         key={props.cx}
@@ -225,7 +226,8 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
                   strokeWidth={1.5}
                   fill="url(#lowGrad)"
                   dot={(props: AnomalyDotProps) => {
-                    if (!props.payload.isAnomaly) return <g key={props.cx} />;
+                    if (!props.payload.isAnomaly || props.cx == null || props.cy == null)
+                      return <g key={props.cx} />;
                     return (
                       <circle
                         key={props.cx}
