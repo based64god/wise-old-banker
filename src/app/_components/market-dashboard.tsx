@@ -126,13 +126,17 @@ export function MarketDashboard() {
       {/* Header */}
       <header className="border-b border-amber-900/50 bg-[#150e00]/90 backdrop-blur-sm shadow-[0_2px_20px_rgba(180,100,0,0.1)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-amber-400">
-              Wise Old Banker
-            </h1>
-            <p className="text-xs text-stone-400">
-              Grand Exchange Market Analysis · OSRS
-            </p>
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/favicon.svg" alt="" className="h-10 w-10" />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-amber-400">
+                Wise Old Banker
+              </h1>
+              <p className="text-xs text-stone-400">
+                Grand Exchange Market Analysis · OSRS
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             {data && (
