@@ -85,42 +85,41 @@ function analyzeItem(
   sixHour: TimestepPrice | undefined,
   twentyFourHour: TimestepPrice | undefined,
 ): AnalyzedItem | null {
-  // Need at least 1h and 6h window data for analysis
-  if (!oneHour || !sixHour) return null;
-
-  const h1High = oneHour.avgHighPrice;
-  const h6High = sixHour.avgHighPrice;
+  const h1High = oneHour?.avgHighPrice;
+  const h6High = sixHour?.avgHighPrice;
   const h24High = twentyFourHour?.avgHighPrice;
 
-  if (!h1High || !h6High) return null;
+  // Need at least one price reference to display anything
+  const basePrice = h1High ?? latest.high ?? latest.low ?? null;
+  if (!basePrice) return null;
 
-  // Display price: prefer latest instant price, fall back to 1h average
-  const highPrice = latest.high ?? h1High;
-  const lowPrice = latest.low ?? oneHour.avgLowPrice ?? 0;
-  const currentPrice = h1High; // use averaged price for analysis context
+  const highPrice = latest.high ?? h1High ?? basePrice;
+  const lowPrice = latest.low ?? oneHour?.avgLowPrice ?? 0;
+  const currentPrice = h1High ?? basePrice;
 
-  // Price changes: window-vs-window (robust against single-trade noise)
-  const priceChange1h = (h1High - h6High) / h6High;
-  const priceChange6h = h24High ? (h6High - h24High) / h24High : priceChange1h;
+  const priceChange1h =
+    h1High && h6High ? (h1High - h6High) / h6High : 0;
+  const priceChange6h =
+    h6High && h24High ? (h6High - h24High) / h24High : priceChange1h;
 
-  // Flip margin: spread within the 1h window
-  const h1Low = oneHour.avgLowPrice;
-  const marginPct = h1Low && h1Low > 0 ? (h1High - h1Low) / h1Low : 0;
+  const h1Low = oneHour?.avgLowPrice;
+  const marginPct = h1High && h1Low && h1Low > 0 ? (h1High - h1Low) / h1Low : 0;
 
-  // Volume analysis
-  const volume1h = oneHour.highPriceVolume + oneHour.lowPriceVolume;
-  const volume6h = sixHour.highPriceVolume + sixHour.lowPriceVolume;
+  const volume1h = oneHour
+    ? oneHour.highPriceVolume + oneHour.lowPriceVolume
+    : 0;
+  const volume6h = sixHour
+    ? sixHour.highPriceVolume + sixHour.lowPriceVolume
+    : 0;
   const volumeRate6h = volume6h / 6;
   const volumeRatio = volumeRate6h > 0 ? volume1h / volumeRate6h : 1;
 
-  // Momentum: 1h change weighted higher than 6h
   const momentumScore = clamp(
     priceChange1h * 0.65 + priceChange6h * 0.35,
     -1,
     1,
   );
 
-  // Signal classification
   let signal: Signal = "STABLE";
   if (priceChange1h > 0.03 && (volumeRatio >= 0.8 || volume1h > 500)) {
     signal = "SURGING";
@@ -185,10 +184,6 @@ export const geRouter = createTRPCRouter({
         twentyFourHour,
       );
       if (!analyzed) continue;
-
-      // Filter: minimum price and minimum volume for liquid market
-      if (analyzed.currentPrice < 500) continue;
-      if (analyzed.volume1h < 50) continue;
 
       // Filter: cap anomalous price deviations (single-trade spikes)
       if (Math.abs(analyzed.priceChange1h) > 0.8) continue;
