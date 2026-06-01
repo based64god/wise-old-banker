@@ -27,10 +27,16 @@ function TopCard({
   title,
   items,
   onSelect,
+  stat = (item) => ({
+    value: item.priceChange1h * 100,
+    label: `${item.priceChange1h >= 0 ? "+" : ""}${(item.priceChange1h * 100).toFixed(1)}%`,
+    positive: item.priceChange1h >= 0,
+  }),
 }: {
   title: string;
   items: AnalyzedItem[];
   onSelect: (item: AnalyzedItem) => void;
+  stat?: (item: AnalyzedItem) => { label: string; positive: boolean };
 }) {
   return (
     <div className="rounded-xl border border-amber-900/40 bg-stone-900/50">
@@ -38,39 +44,39 @@ function TopCard({
         <h3 className="text-sm font-semibold text-amber-400">{title}</h3>
       </div>
       <ul>
-        {items.slice(0, 5).map((item) => (
-          <li
-            key={item.id}
-            onClick={() => onSelect(item)}
-            className="flex cursor-pointer items-center justify-between border-b border-stone-800/50 px-4 py-2 text-sm last:border-0 hover:bg-amber-900/10"
-          >
-            <div className="flex items-center gap-2 overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`https://oldschool.runescape.wiki/images/${encodeURIComponent(item.icon.replace(/ /g, "_"))}`}
-                alt=""
-                className="h-5 w-5 shrink-0 object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-              <span className="truncate text-amber-200">{item.name}</span>
-            </div>
-            <div className="ml-2 shrink-0 text-right">
-              <p className="text-xs text-stone-400">
-                {formatGp(item.currentPrice)}
-              </p>
-              <p
-                className={`text-xs font-medium ${
-                  item.priceChange1h >= 0 ? "text-green-400" : "text-red-400"
-                }`}
-              >
-                {item.priceChange1h >= 0 ? "+" : ""}
-                {(item.priceChange1h * 100).toFixed(1)}%
-              </p>
-            </div>
-          </li>
-        ))}
+        {items.slice(0, 5).map((item) => {
+          const s = stat(item);
+          return (
+            <li
+              key={item.id}
+              onClick={() => onSelect(item)}
+              className="flex cursor-pointer items-center justify-between border-b border-stone-800/50 px-4 py-2 text-sm last:border-0 hover:bg-amber-900/10"
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`https://oldschool.runescape.wiki/images/${encodeURIComponent(item.icon.replace(/ /g, "_"))}`}
+                  alt=""
+                  className="h-5 w-5 shrink-0 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+                <span className="truncate text-amber-200">{item.name}</span>
+              </div>
+              <div className="ml-2 shrink-0 text-right">
+                <p className="text-xs text-stone-400">
+                  {formatGp(item.currentPrice)}
+                </p>
+                <p
+                  className={`text-xs font-medium ${s.positive ? "text-green-400" : "text-red-400"}`}
+                >
+                  {s.label}
+                </p>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -172,6 +178,10 @@ export function MarketDashboard() {
                 title="High Margin Flips"
                 items={highMargin}
                 onSelect={setSelectedItem}
+                stat={(item) => ({
+                  label: `${(item.marginPct * 100).toFixed(1)}% margin`,
+                  positive: true,
+                })}
               />
             </div>
 
