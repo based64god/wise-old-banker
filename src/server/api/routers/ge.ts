@@ -7,9 +7,6 @@ const USER_AGENT = "wise-old-banker/1.0 (emmetthitz@gmail.com)";
 // Modified Z-score threshold (Iglewicz & Hoaglin recommend 3.5 for MAD-based detection)
 const ANOMALY_Z = 3.5;
 const TIMESERIES_ANOMALY_Z = 3.5;
-// Minimum absolute price change to flag a timeseries point as anomalous.
-// Prevents near-zero MAD on stable items from turning trivial wiggles into false positives.
-const MIN_ANOMALY_CHANGE = 0.05;
 
 interface MappingItem {
   id: number;
@@ -87,8 +84,9 @@ function clamp(v: number, lo: number, hi: number) {
 
 // MAD-based robust stats. Unlike mean/std, the median and MAD are not pulled
 // by extreme values, so a single spike can't inflate the spread enough to mask itself.
+// Returns raw MAD (may be 0 when all values are identical).
 function robustStats(values: number[]): { median: number; mad: number } {
-  if (values.length === 0) return { median: 0, mad: 1 };
+  if (values.length === 0) return { median: 0, mad: 0 };
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   const med =
@@ -103,12 +101,14 @@ function robustStats(values: number[]): { median: number; mad: number } {
     deviations.length % 2 === 0
       ? ((deviations[madMid - 1] ?? 0) + (deviations[madMid] ?? 0)) / 2
       : (deviations[madMid] ?? 0);
-  return { median: med, mad: mad || 1 };
+  return { median: med, mad };
 }
 
 // Modified Z-score: 0.6745 normalises MAD to be comparable to std dev for
 // normally-distributed data (Iglewicz & Hoaglin 1993).
+// Returns 0 when MAD is 0 (all values identical — no deviation is possible).
 function modifiedZ(value: number, med: number, mad: number): number {
+  if (mad === 0) return 0;
   return (0.6745 * Math.abs(value - med)) / mad;
 }
 
@@ -230,14 +230,18 @@ export const geRouter = createTRPCRouter({
 
     // Robust anomaly detection across all items using MAD-based modified Z-score.
     // Prevents extreme outliers from inflating the spread and masking themselves.
+    // MAD floors prevent near-zero denominators when many items share a default value (0 or 1).
     const pcStats = robustStats(items.map((i) => i.priceChange1h));
     const mStats = robustStats(items.map((i) => i.marginPct));
     const vrStats = robustStats(items.map((i) => i.volumeRatio));
+    const pcMad = Math.max(pcStats.mad, 0.01);   // floor at 1% price-change unit
+    const mMad = Math.max(mStats.mad, 0.01);     // floor at 1% margin unit
+    const vrMad = Math.max(vrStats.mad, 0.1);    // floor at 0.1× volume-ratio unit
 
     for (const item of items) {
-      const pcZ = modifiedZ(item.priceChange1h, pcStats.median, pcStats.mad);
-      const mZ = modifiedZ(item.marginPct, mStats.median, mStats.mad);
-      const vrZ = modifiedZ(item.volumeRatio, vrStats.median, vrStats.mad);
+      const pcZ = modifiedZ(item.priceChange1h, pcStats.median, pcMad);
+      const mZ = modifiedZ(item.marginPct, mStats.median, mMad);
+      const vrZ = modifiedZ(item.volumeRatio, vrStats.median, vrMad);
 
       if (pcZ > ANOMALY_Z || mZ > ANOMALY_Z || vrZ > ANOMALY_Z) {
         item.isAnomaly = true;
@@ -275,27 +279,27 @@ export const geRouter = createTRPCRouter({
       );
       const points = data.data;
 
-      // Compute Z-scores on consecutive price changes to detect anomalous points
-      const changes: number[] = [];
-      for (let i = 1; i < points.length; i++) {
-        const prev = points[i - 1]?.avgHighPrice;
-        const curr = points[i]?.avgHighPrice;
-        if (prev && curr && prev > 0) changes.push((curr - prev) / prev);
+      // Compare each candle's price against the item's own 24h price distribution.
+      // This correctly handles null gaps (no adjacent-change skipping bug), adapts to
+      // each item's volatility, and only flags prices that are clear outliers in context.
+      const nonNullPrices = points
+        .map((p, i) => ({ idx: i, price: p.avgHighPrice }))
+        .filter((p): p is { idx: number; price: number } => p.price !== null);
+
+      const anomalySet = new Set<number>();
+      if (nonNullPrices.length >= 4) {
+        const { median, mad } = robustStats(nonNullPrices.map((p) => p.price));
+        // Floor the MAD at 1% of the median price so that micro-variation on
+        // perfectly stable items doesn't produce a near-zero denominator and
+        // flag normal rounding noise as anomalous.
+        const effectiveMad = Math.max(mad, median * 0.01);
+        for (const { idx, price } of nonNullPrices) {
+          if (modifiedZ(price, median, effectiveMad) > TIMESERIES_ANOMALY_Z) {
+            anomalySet.add(idx);
+          }
+        }
       }
 
-      const { median, mad } = robustStats(changes);
-
-      let changeIdx = 0;
-      return points.map((p, i) => {
-        if (i === 0 || !points[i - 1]?.avgHighPrice || !p.avgHighPrice) {
-          return { ...p, isAnomaly: false };
-        }
-        const change = changes[changeIdx++] ?? 0;
-        const z = modifiedZ(change, median, mad);
-        return {
-          ...p,
-          isAnomaly: z > TIMESERIES_ANOMALY_Z && Math.abs(change) > MIN_ANOMALY_CHANGE,
-        };
-      });
+      return points.map((p, i) => ({ ...p, isAnomaly: anomalySet.has(i) }));
     }),
 });
