@@ -113,6 +113,9 @@ interface ItemModalProps {
 }
 
 const INTERVALS = [
+  { value: "5m",  label: "5m"  },
+  { value: "1h",  label: "1h"  },
+  { value: "6h",  label: "6h"  },
   { value: "24h", label: "24h" },
   { value: "7d",  label: "7d"  },
   { value: "1m",  label: "1m"  },

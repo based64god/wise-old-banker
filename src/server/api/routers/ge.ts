@@ -268,7 +268,7 @@ export const geRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.number().int().positive(),
-        interval: z.enum(["24h", "7d", "1m", "3m", "6m"]).default("24h"),
+        interval: z.enum(["5m", "1h", "6h", "24h", "7d", "1m", "3m", "6m"]).default("24h"),
       }),
     )
     .query(async ({ input }) => {
@@ -316,8 +316,14 @@ export const geRouter = createTRPCRouter({
         return candles;
       }
 
-      // Wiki timeseries: 24h→5m, 7d→1h, 1m→6h
-      const wikiTimestep = { "24h": "5m", "7d": "1h", "1m": "6h" } as const;
+      // Wiki timeseries — map interval to candle size and optional window cutoff.
+      // 5m/1h/6h show all available data for that candle size (unfiltered).
+      // 24h/7d/1m are windowed views of the same endpoints.
+      const wikiTimestep = {
+        "5m": "5m", "24h": "5m",
+        "1h": "1h", "7d":  "1h",
+        "6h": "6h", "1m":  "6h",
+      } as const;
       const timestep = wikiTimestep[interval];
 
       const data = await wikiGet<{ data: TimeseriesPoint[] }>(
@@ -325,15 +331,13 @@ export const geRouter = createTRPCRouter({
         120,
       );
 
-      // Discard candles backed by fewer than this many transactions — single-trade
-      // candles skew the average price and are the main source of chart noise.
       const MIN_CANDLE_VOLUME = 2;
 
-      // 1m uses the 6h endpoint which covers ~45 days; trim to 30 days.
-      const cutoffTs =
-        interval === "1m"
-          ? Math.floor(Date.now() / 1000) - 30 * 24 * 3600
-          : 0;
+      const windowDays: Partial<Record<string, number>> = { "24h": 1, "7d": 7, "1m": 30 };
+      const days = windowDays[interval];
+      const cutoffTs = days
+        ? Math.floor(Date.now() / 1000) - days * 24 * 3600
+        : 0;
 
       const candles: {
         timestamp: number;
