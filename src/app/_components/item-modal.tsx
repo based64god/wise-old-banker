@@ -197,7 +197,7 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
                   ]}
                 />
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="high"
                   stroke="#4ade80"
                   strokeWidth={1.5}
@@ -220,7 +220,7 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
                   connectNulls
                 />
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="low"
                   stroke="#f87171"
                   strokeWidth={1.5}

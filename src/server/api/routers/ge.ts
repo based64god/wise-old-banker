@@ -7,6 +7,9 @@ const USER_AGENT = "wise-old-banker/1.0 (emmetthitz@gmail.com)";
 // Modified Z-score threshold (Iglewicz & Hoaglin recommend 3.5 for MAD-based detection)
 const ANOMALY_Z = 3.5;
 const TIMESERIES_ANOMALY_Z = 3.5;
+// Minimum absolute price change to flag a timeseries point as anomalous.
+// Prevents near-zero MAD on stable items from turning trivial wiggles into false positives.
+const MIN_ANOMALY_CHANGE = 0.05;
 
 interface MappingItem {
   id: number;
@@ -289,7 +292,10 @@ export const geRouter = createTRPCRouter({
         }
         const change = changes[changeIdx++] ?? 0;
         const z = modifiedZ(change, median, mad);
-        return { ...p, isAnomaly: z > TIMESERIES_ANOMALY_Z };
+        return {
+          ...p,
+          isAnomaly: z > TIMESERIES_ANOMALY_Z && Math.abs(change) > MIN_ANOMALY_CHANGE,
+        };
       });
     }),
 });
