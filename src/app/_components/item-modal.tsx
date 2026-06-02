@@ -2,21 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  CandlestickSeries,
+  ColorType,
+  createChart,
+  type IChartApi,
+  type UTCTimestamp,
+} from "lightweight-charts";
 import type { AnalyzedItem } from "~/server/api/routers/ge";
-
-interface AnomalyDotProps {
-  cx?: number;
-  cy?: number;
-  payload: { isAnomaly: boolean };
-}
 import { api } from "~/trpc/react";
 import { SignalBadge } from "./signal-badge";
 
@@ -24,13 +16,6 @@ function formatGp(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M gp`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k gp`;
   return `${n} gp`;
-}
-
-function formatTs(ts: number) {
-  return new Date(ts * 1000).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function PctChange({ value }: { value: number }) {
@@ -45,6 +30,83 @@ function PctChange({ value }: { value: number }) {
   );
 }
 
+interface CandlePoint {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+function CandleChart({ candles }: { candles: CandlePoint[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || candles.length === 0) return;
+
+    const chart = createChart(containerRef.current, {
+      height: 200,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "#78716c",
+      },
+      grid: {
+        vertLines: { color: "#292524" },
+        horzLines: { color: "#292524" },
+      },
+      rightPriceScale: {
+        borderColor: "#292524",
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+      },
+      timeScale: {
+        borderColor: "#292524",
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      crosshair: { mode: 1 },
+    });
+
+    chartRef.current = chart;
+
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: "#4ade80",
+      downColor: "#f87171",
+      borderUpColor: "#4ade80",
+      borderDownColor: "#f87171",
+      wickUpColor: "#4ade80",
+      wickDownColor: "#f87171",
+    });
+
+    series.setData(
+      candles.map((c) => ({
+        time: c.timestamp as UTCTimestamp,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      })),
+    );
+
+    chart.timeScale().fitContent();
+
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) chart.applyOptions({ width });
+    });
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [candles]);
+
+  return <div ref={containerRef} className="w-full" />;
+}
+
 interface ItemModalProps {
   item: AnalyzedItem;
   onClose: () => void;
@@ -53,7 +115,7 @@ interface ItemModalProps {
 export function ItemModal({ item, onClose }: ItemModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  const { data: timeseries, isLoading } = api.ge.getItemTimeseries.useQuery({
+  const { data: candles, isLoading } = api.ge.getItemTimeseries.useQuery({
     id: item.id,
     timestep: "5m",
   });
@@ -65,14 +127,6 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
-
-  const chartData = timeseries?.map((p) => ({
-    time: formatTs(p.timestamp),
-    high: p.avgHighPrice,
-    low: p.avgLowPrice,
-    vol: (p.highPriceVolume ?? 0) + (p.lowPriceVolume ?? 0),
-    isAnomaly: p.isAnomaly ?? false,
-  }));
 
   const iconUrl = `https://oldschool.runescape.wiki/images/${encodeURIComponent(item.icon.replace(/ /g, "_"))}`;
 
@@ -97,7 +151,8 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
           <div className="flex-1">
             <h2 className="text-lg font-bold text-amber-300">{item.name}</h2>
             <p className="text-xs text-stone-400">
-              {item.members ? "Members" : "F2P"} · Limit: {item.limit.toLocaleString()}
+              {item.members ? "Members" : "F2P"} · Limit:{" "}
+              {item.limit.toLocaleString()}
             </p>
           </div>
           <SignalBadge signal={item.signal} />
@@ -138,112 +193,15 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
 
         {/* Chart */}
         <div className="px-5 py-4">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-semibold tracking-wide text-stone-400 uppercase">
-              Price History (last 24h · 5min intervals)
-            </p>
-            <span className="flex items-center gap-1 text-xs text-stone-500">
-              <span className="inline-block h-2 w-2 rounded-full bg-orange-500" />
-              anomalous point
-            </span>
-          </div>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-stone-400 uppercase">
+            Price History (last 24h · 5min intervals)
+          </p>
           {isLoading ? (
             <div className="flex h-48 items-center justify-center text-stone-500">
               Loading chart...
             </div>
-          ) : chartData && chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart
-                data={chartData}
-                margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="highGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="lowGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f87171" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#292524" />
-                <XAxis
-                  dataKey="time"
-                  tick={{ fill: "#78716c", fontSize: 10 }}
-                  interval={Math.floor(chartData.length / 6)}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: "#78716c", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: number) =>
-                    v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
-                  }
-                  width={48}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1c1917",
-                    border: "1px solid #44403c",
-                    borderRadius: "6px",
-                    fontSize: "12px",
-                  }}
-                  labelStyle={{ color: "#a8a29e" }}
-                  formatter={(value, name) => [
-                    formatGp(Number(value)),
-                    name === "high" ? "Buy" : "Sell",
-                  ]}
-                />
-                <Area
-                  type="linear"
-                  dataKey="high"
-                  stroke="#4ade80"
-                  strokeWidth={1.5}
-                  fill="url(#highGrad)"
-                  dot={(props: AnomalyDotProps) => {
-                    if (!props.payload.isAnomaly || props.cx == null || props.cy == null)
-                      return <g key={props.cx} />;
-                    return (
-                      <circle
-                        key={props.cx}
-                        cx={props.cx}
-                        cy={props.cy}
-                        r={4}
-                        fill="#f97316"
-                        stroke="#1c1917"
-                        strokeWidth={1.5}
-                      />
-                    );
-                  }}
-                  connectNulls
-                />
-                <Area
-                  type="linear"
-                  dataKey="low"
-                  stroke="#f87171"
-                  strokeWidth={1.5}
-                  fill="url(#lowGrad)"
-                  dot={(props: AnomalyDotProps) => {
-                    if (!props.payload.isAnomaly || props.cx == null || props.cy == null)
-                      return <g key={props.cx} />;
-                    return (
-                      <circle
-                        key={props.cx}
-                        cx={props.cx}
-                        cy={props.cy}
-                        r={4}
-                        fill="#f97316"
-                        stroke="#1c1917"
-                        strokeWidth={1.5}
-                      />
-                    );
-                  }}
-                  connectNulls
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          ) : candles && candles.length > 0 ? (
+            <CandleChart candles={candles} />
           ) : (
             <div className="flex h-48 items-center justify-center text-stone-500">
               No chart data available
@@ -274,8 +232,7 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
             <span className="text-stone-200">{formatGp(item.highalch)}</span>
           </span>
           <span>
-            6h Change:{" "}
-            <PctChange value={item.priceChange6h} />
+            6h Change: <PctChange value={item.priceChange6h} />
           </span>
         </div>
       </div>

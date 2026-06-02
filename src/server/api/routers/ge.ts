@@ -6,7 +6,6 @@ const USER_AGENT = "wise-old-banker/1.0 (emmetthitz@gmail.com)";
 
 // Modified Z-score threshold (Iglewicz & Hoaglin recommend 3.5 for MAD-based detection)
 const ANOMALY_Z = 3.5;
-const TIMESERIES_ANOMALY_Z = 3.5;
 
 interface MappingItem {
   id: number;
@@ -277,29 +276,37 @@ export const geRouter = createTRPCRouter({
         `/timeseries?timestep=${input.timestep}&id=${input.id}`,
         120,
       );
-      const points = data.data;
 
-      // Compare each candle's price against the item's own 24h price distribution.
-      // This correctly handles null gaps (no adjacent-change skipping bug), adapts to
-      // each item's volatility, and only flags prices that are clear outliers in context.
-      const nonNullPrices = points
-        .map((p, i) => ({ idx: i, price: p.avgHighPrice }))
-        .filter((p): p is { idx: number; price: number } => p.price !== null);
+      // Discard candles backed by fewer than this many transactions — single-trade
+      // candles skew the average price and are the main source of chart noise.
+      const MIN_CANDLE_VOLUME = 2;
 
-      const anomalySet = new Set<number>();
-      if (nonNullPrices.length >= 4) {
-        const { median, mad } = robustStats(nonNullPrices.map((p) => p.price));
-        // Floor the MAD at 1% of the median price so that micro-variation on
-        // perfectly stable items doesn't produce a near-zero denominator and
-        // flag normal rounding noise as anomalous.
-        const effectiveMad = Math.max(mad, median * 0.01);
-        for (const { idx, price } of nonNullPrices) {
-          if (modifiedZ(price, median, effectiveMad) > TIMESERIES_ANOMALY_Z) {
-            anomalySet.add(idx);
-          }
-        }
+      const candles: {
+        timestamp: number;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume: number;
+      }[] = [];
+
+      for (const p of data.data) {
+        const volume = p.highPriceVolume + p.lowPriceVolume;
+        if (!p.avgHighPrice || !p.avgLowPrice || volume < MIN_CANDLE_VOLUME) continue;
+
+        // open tracks from the previous candle's close so the body shows direction
+        const open = candles[candles.length - 1]?.close ?? p.avgHighPrice;
+
+        candles.push({
+          timestamp: p.timestamp,
+          open,
+          high: p.avgHighPrice,
+          low: p.avgLowPrice,
+          close: p.avgHighPrice,
+          volume,
+        });
       }
 
-      return points.map((p, i) => ({ ...p, isAnomaly: anomalySet.has(i) }));
+      return candles;
     }),
 });
