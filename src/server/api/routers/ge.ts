@@ -268,18 +268,72 @@ export const geRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.number().int().positive(),
-        timestep: z.enum(["5m", "1h", "6h"]).default("5m"),
+        interval: z.enum(["24h", "7d", "1m", "3m", "6m"]).default("24h"),
       }),
     )
     .query(async ({ input }) => {
+      const { id, interval } = input;
+
+      // 3m and 6m come from the official daily GE graph (180 days max).
+      // Shorter intervals use the wiki real-time timeseries with volume filtering.
+      if (interval === "3m" || interval === "6m") {
+        const res = await fetch(
+          `https://secure.runescape.com/m=itemdb_oldschool/api/graph/${id}.json`,
+          { next: { revalidate: 3600 } },
+        );
+        if (!res.ok) throw new Error(`GE graph API error: ${res.status}`);
+        const json = (await res.json()) as { daily: Record<string, number> };
+
+        const days = interval === "6m" ? 180 : 90;
+        const cutoffMs = Date.now() - days * 24 * 3600 * 1000;
+
+        const entries = Object.entries(json.daily)
+          .map(([tsMs, price]) => ({ ts: Number(tsMs) / 1000, price }))
+          .filter((e) => e.ts * 1000 >= cutoffMs)
+          .sort((a, b) => a.ts - b.ts);
+
+        const candles: {
+          timestamp: number;
+          open: number;
+          high: number;
+          low: number;
+          close: number;
+          volume: number;
+        }[] = [];
+
+        for (const curr of entries) {
+          const prevClose = candles[candles.length - 1]?.close ?? curr.price;
+          candles.push({
+            timestamp: curr.ts,
+            open: prevClose,
+            high: Math.max(prevClose, curr.price),
+            low: Math.min(prevClose, curr.price),
+            close: curr.price,
+            volume: 0,
+          });
+        }
+
+        return candles;
+      }
+
+      // Wiki timeseries: 24h→5m, 7d→1h, 1m→6h
+      const wikiTimestep = { "24h": "5m", "7d": "1h", "1m": "6h" } as const;
+      const timestep = wikiTimestep[interval];
+
       const data = await wikiGet<{ data: TimeseriesPoint[] }>(
-        `/timeseries?timestep=${input.timestep}&id=${input.id}`,
+        `/timeseries?timestep=${timestep}&id=${id}`,
         120,
       );
 
       // Discard candles backed by fewer than this many transactions — single-trade
       // candles skew the average price and are the main source of chart noise.
       const MIN_CANDLE_VOLUME = 2;
+
+      // 1m uses the 6h endpoint which covers ~45 days; trim to 30 days.
+      const cutoffTs =
+        interval === "1m"
+          ? Math.floor(Date.now() / 1000) - 30 * 24 * 3600
+          : 0;
 
       const candles: {
         timestamp: number;
@@ -291,12 +345,11 @@ export const geRouter = createTRPCRouter({
       }[] = [];
 
       for (const p of data.data) {
+        if (p.timestamp < cutoffTs) continue;
         const volume = p.highPriceVolume + p.lowPriceVolume;
         if (!p.avgHighPrice || !p.avgLowPrice || volume < MIN_CANDLE_VOLUME) continue;
 
-        // open tracks from the previous candle's close so the body shows direction
         const open = candles[candles.length - 1]?.close ?? p.avgHighPrice;
-
         candles.push({
           timestamp: p.timestamp,
           open,

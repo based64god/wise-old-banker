@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CandlestickSeries,
   ColorType,
@@ -112,12 +112,23 @@ interface ItemModalProps {
   onClose: () => void;
 }
 
+const INTERVALS = [
+  { value: "24h", label: "24h" },
+  { value: "7d",  label: "7d"  },
+  { value: "1m",  label: "1m"  },
+  { value: "3m",  label: "3m"  },
+  { value: "6m",  label: "6m"  },
+] as const;
+
+type Interval = (typeof INTERVALS)[number]["value"];
+
 export function ItemModal({ item, onClose }: ItemModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const [interval, setInterval] = useState<Interval>("24h");
 
   const { data: candles, isLoading } = api.ge.getItemTimeseries.useQuery({
     id: item.id,
-    timestep: "5m",
+    interval,
   });
 
   useEffect(() => {
@@ -193,9 +204,26 @@ export function ItemModal({ item, onClose }: ItemModalProps) {
 
         {/* Chart */}
         <div className="px-5 py-4">
-          <p className="mb-2 text-xs font-semibold tracking-wide text-stone-400 uppercase">
-            Price History (last 24h · 5min intervals)
-          </p>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold tracking-wide text-stone-400 uppercase">
+              Price History
+            </p>
+            <div className="flex gap-1">
+              {INTERVALS.map((iv) => (
+                <button
+                  key={iv.value}
+                  onClick={() => setInterval(iv.value)}
+                  className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+                    interval === iv.value
+                      ? "bg-amber-700 text-white"
+                      : "text-stone-400 hover:text-amber-300"
+                  }`}
+                >
+                  {iv.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {isLoading ? (
             <div className="flex h-48 items-center justify-center text-stone-500">
               Loading chart...
