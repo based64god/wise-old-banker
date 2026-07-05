@@ -85,6 +85,7 @@ function TopCard({
 export function MarketDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
+  const [minVolume, setMinVolume] = useState("");
   const [selectedItem, setSelectedItem] = useState<AnalyzedItem | null>(null);
 
   const { data, isLoading, error, refetch, isFetching } =
@@ -217,13 +218,23 @@ export function MarketDashboard() {
                   </button>
                 ))}
               </div>
-              <input
-                type="search"
-                placeholder="Search items…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="rounded-lg border border-stone-700 bg-stone-900 px-3 py-1.5 text-sm text-stone-100 placeholder-stone-500 outline-none focus:border-amber-700 sm:w-64"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Min 1h volume"
+                  value={minVolume}
+                  onChange={(e) => setMinVolume(e.target.value)}
+                  className="w-32 rounded-lg border border-stone-700 bg-stone-900 px-3 py-1.5 text-sm text-stone-100 placeholder-stone-500 outline-none focus:border-amber-700"
+                />
+                <input
+                  type="search"
+                  placeholder="Search items…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="rounded-lg border border-stone-700 bg-stone-900 px-3 py-1.5 text-sm text-stone-100 placeholder-stone-500 outline-none focus:border-amber-700 sm:w-64"
+                />
+              </div>
             </div>
 
             {/* Signal legend */}
@@ -248,6 +259,7 @@ export function MarketDashboard() {
               items={tabItems}
               onSelect={setSelectedItem}
               filter={search}
+              minVolume={Number(minVolume) || 0}
             />
 
             <p className="mt-3 text-xs text-stone-600">

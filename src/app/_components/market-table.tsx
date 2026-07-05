@@ -65,9 +65,15 @@ interface MarketTableProps {
   items: AnalyzedItem[];
   onSelect: (item: AnalyzedItem) => void;
   filter?: string;
+  minVolume?: number;
 }
 
-export function MarketTable({ items, onSelect, filter }: MarketTableProps) {
+export function MarketTable({
+  items,
+  onSelect,
+  filter,
+  minVolume = 0,
+}: MarketTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("momentumScore");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [absPctSort, setAbsPctSort] = useState(false);
@@ -81,11 +87,11 @@ export function MarketTable({ items, onSelect, filter }: MarketTableProps) {
     }
   }
 
-  const filtered = filter
-    ? items.filter((i) =>
-        i.name.toLowerCase().includes(filter.toLowerCase()),
-      )
-    : items;
+  const filtered = items.filter(
+    (i) =>
+      i.volume1h >= minVolume &&
+      (!filter || i.name.toLowerCase().includes(filter.toLowerCase())),
+  );
 
   const isPctKey = sortKey === "priceChange1h" || sortKey === "priceChange6h";
 
@@ -210,7 +216,7 @@ export function MarketTable({ items, onSelect, filter }: MarketTableProps) {
       </table>
       {sorted.length === 0 && (
         <div className="py-12 text-center text-stone-500">
-          No items match your search.
+          No items match your filters.
         </div>
       )}
     </div>
