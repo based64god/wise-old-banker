@@ -70,6 +70,7 @@ interface MarketTableProps {
 export function MarketTable({ items, onSelect, filter }: MarketTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("momentumScore");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [absPctSort, setAbsPctSort] = useState(false);
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -86,13 +87,19 @@ export function MarketTable({ items, onSelect, filter }: MarketTableProps) {
       )
     : items;
 
+  const isPctKey = sortKey === "priceChange1h" || sortKey === "priceChange6h";
+
   const sorted = [...filtered].sort((a, b) => {
-    const av = a[sortKey];
-    const bv = b[sortKey];
+    let av = a[sortKey];
+    let bv = b[sortKey];
     if (typeof av === "string" && typeof bv === "string") {
       return sortDir === "asc"
         ? av.localeCompare(bv)
         : bv.localeCompare(av);
+    }
+    if (absPctSort && isPctKey) {
+      av = Math.abs(av as number);
+      bv = Math.abs(bv as number);
     }
     return sortDir === "asc"
       ? (av as number) - (bv as number)
@@ -111,6 +118,17 @@ export function MarketTable({ items, onSelect, filter }: MarketTableProps) {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-amber-900/40">
+      <div className="flex justify-end border-b border-amber-900/40 bg-stone-900/80 px-3 py-1.5">
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-stone-400 select-none hover:text-amber-300">
+          <input
+            type="checkbox"
+            checked={absPctSort}
+            onChange={(e) => setAbsPctSort(e.target.checked)}
+            className="accent-amber-500"
+          />
+          Sort % change by absolute value
+        </label>
+      </div>
       <table className="w-full text-sm">
         <thead className="border-b border-amber-900/40 bg-stone-900/80">
           <tr>

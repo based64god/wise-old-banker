@@ -24,6 +24,16 @@ export default function RootLayout({
     <html lang="en" className={`${geist.variable}`}>
       <body>
         <TRPCReactProvider>{children}</TRPCReactProvider>
+        <footer className="border-t border-amber-900/40 py-4 text-center text-xs text-stone-500">
+          <a
+            href="https://github.com/based64god/wise-old-banker"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-amber-300"
+          >
+            Source on GitHub
+          </a>
+        </footer>
       </body>
     </html>
   );
