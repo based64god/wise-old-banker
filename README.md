@@ -1,29 +1,58 @@
-# Create T3 App
+# Wise Old Banker
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+Real-time market analysis for the Old School RuneScape Grand Exchange. Tracks price trends across every tradeable item, flags surging and crashing items, and surfaces high-margin flipping opportunities — all from live data, no account or API key required.
 
-## What's next? How do I make an app with this?
+Data comes from the [OSRS Wiki Real-time Prices API](https://oldschool.runescape.wiki/w/RuneScape:Real-time_Prices) and auto-refreshes every 90 seconds.
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+## Features
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+- **Market table** — every tradeable item with current price, 1h/6h price change, buy/sell margin, 1h volume, and volume ratio vs. baseline. Sortable by any column, with an option to sort % change by absolute value (biggest movers in either direction first).
+- **Signals** — each item is classified from live data:
+  - `SURGING` — price up >3% in the last hour with volume holding up
+  - `CRASHING` — price down >3% in the last hour
+  - `HIGH_MARGIN` — buy/sell spread >5%
+  - `VOLUME_SPIKE` — 1h volume >2.5× the 24h baseline
+- **Filters** — search by name, filter by signal tab, and hide items below a minimum 1h volume.
+- **Item detail** — click any row for price/volume charts (via lightweight-charts) at multiple time intervals.
+- **Momentum score** — items are ranked by a composite momentum score so the most interesting movers surface first.
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+## Getting started
 
-## Learn More
+Requires Node.js and [pnpm](https://pnpm.io), plus Docker (or Podman) for the local database.
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+```bash
+pnpm install
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+# Start a local Postgres container and set DATABASE_URL in .env
+./start-database.sh
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+pnpm dev
+```
 
-## How do I deploy this?
+Then open http://localhost:3000.
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+> **Note:** the Grand Exchange analyzer itself is stateless — it reads directly from the wiki API. The database is only used by leftover T3 scaffolding, but `DATABASE_URL` must be set for env validation to pass.
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `pnpm dev` | Dev server with Turbo |
+| `pnpm build` / `pnpm start` | Production build / serve |
+| `pnpm preview` | Build and serve in one step |
+| `pnpm check` | Lint + typecheck |
+| `pnpm format:write` | Format with Prettier |
+| `pnpm db:push` / `db:studio` | Drizzle schema push / studio |
+
+## Architecture
+
+Built on the [T3 stack](https://create.t3.gg/): Next.js 15 (App Router), tRPC v11, Drizzle ORM, Tailwind CSS v4, and TypeScript.
+
+- `src/server/api/routers/ge.ts` — the core. Fetches the wiki's `/mapping`, `/latest`, `/1h`, `/6h`, and `/24h` endpoints (with per-endpoint cache TTLs), computes price changes, margins, volume ratios, and a momentum score per item, and classifies signals. Also serves per-item timeseries for the detail charts.
+- `src/app/_components/market-dashboard.tsx` — top-level dashboard: summary cards, signal tabs, search and volume filters.
+- `src/app/_components/market-table.tsx` — the sortable item table.
+- `src/app/_components/item-modal.tsx` — per-item chart modal.
+
+Outlier volumes are damped using a modified Z-score (median absolute deviation) so a single flash-trade doesn't register as a volume spike.
+
+Signals are for informational purposes only — flip responsibly.
